@@ -1,9 +1,10 @@
-function [cm, acc_local, v_prob_local, t_prob_local] = trainTest(usevgg, cache_filename, trial, ttoverlap, dtrain, dtest, train_object_ids, tr_id2label, test_object_ids, te_id2label, ntouchesMax_te, h_train, h_test, ntrainV, ntrainT)
+function [cm, acc_local, v_prob_local, t_prob_local] = trainTest(usevgg, load_cache, save_cache, cache_filename, trial, ttoverlap, dtrain, dtest, train_object_ids, tr_id2label, test_object_ids, te_id2label, ntouchesMax_te, h_train, h_test, ntrainV, ntrainT)
 methodVision = 1;
 methodTouch = 2;
 methodPVPT = 3;
 methods = [methodVision, methodTouch, methodPVPT];
 nmethods = length(methods);
+
 nobjects_train = length(dtrain.objects);
 nobjects_test = length(dtest.objects);
 nlabels = length(unique(tr_id2label(1:nobjects_train)));
@@ -27,11 +28,11 @@ whichImgsToTrain = randsample(setdiff(1:nphotosPerInstance_train, whichImgToTest
 trImgIndex = ismember(dtrain.v_objImgs, whichImgsToTrain) & ismember(dtrain.v_objId, train_object_ids);
 raw = 1;
 bs = 2;
-rawbs = 1;
-usecache = true;
-if ~exist(cache_filename, 'file')
+rawbs = 1; # TODO: revert to 2
+
+if load_cache && ~exist(cache_filename, 'file')
     fprintf('Cache file not found: %s\n', cache_filename)
-    usecache = false;
+    load_cache = false;
 end
 if usevgg
     t = readtable('C:\Users\tadeo\Google Drive\phd\A2 Deep vision and touch\code\python\a3_results_c10_dry_dry.csv');
@@ -39,13 +40,13 @@ if usevgg
 end
 
 for raw_bs = 1:rawbs
-    htr = h_train{raw}(trImgIndex, :);
-    ctr = tr_id2label(dtrain.v_objId(trImgIndex));
-    hte = h_test{raw_bs}(teImgIndex, :);
-    cte = te_id2label(dtest.v_objId(teImgIndex));
-    if usecache
+    if load_cache
         load(cache_filename, 'vpload', 'clasPred_vision', 'phatload');
     else
+        htr = h_train{raw}(trImgIndex, :);
+        ctr = tr_id2label(dtrain.v_objId(trImgIndex));
+        hte = h_test{raw_bs}(teImgIndex, :);
+        cte = te_id2label(dtest.v_objId(teImgIndex));
         [vpload, clasPred_vision, confi] = vision_train_and_test(htr, ctr, hte, false); % true = compute confidences
     end
     if usevgg
@@ -84,9 +85,9 @@ else
 end
 trTouchIndex = ismember(dtrain.t_touchids,trTouch) & ismember(dtrain.t_objId, train_object_ids);
 teTouchIndex = ismember(dtest.t_touchids,teTouch) & ismember(dtest.t_objId, test_object_ids);
-if ~usecache
+if ~load_cache
     [phatload, confi] = touch_train_and_test(dtrain.zpca(trTouchIndex,:), tr_id2label(dtrain.t_objId(trTouchIndex)), dtest.zpca(teTouchIndex,:), false); % true = calculate confidence (Slow!)
-    if ~strcmp(cache_filename, 'none')
+    if save_cache
         save(cache_filename, 'vpload', 'clasPred_vision', 'phatload');
     end
 end
